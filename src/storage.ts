@@ -25,6 +25,9 @@ const KEYS = {
   theme: 'jla-theme',
 } as const;
 
+const DATA_VERSION = 2;
+const DATA_VERSION_KEY = 'jla-data-version';
+
 // ─── Generic helpers ──────────────────────────────────────────────────────────
 
 function load<T>(key: string, seed: T[]): T[] {
@@ -46,6 +49,61 @@ function save<T>(key: string, data: T[]): void {
     console.error('localStorage save error:', key, e);
   }
 }
+
+function checkVersionAndUpgrade() {
+  try {
+    const currentVer = localStorage.getItem(DATA_VERSION_KEY);
+    if (!currentVer || parseInt(currentVer, 10) < DATA_VERSION) {
+      const oldRaw = localStorage.getItem(KEYS.words);
+      if (oldRaw) {
+        try {
+          const oldWords = JSON.parse(oldRaw) as Word[];
+          const oldStatsMap = new Map(oldWords.map(w => [w.id, {
+            timesCorrect: w.timesCorrect,
+            timesWrong: w.timesWrong,
+            nextReview: w.nextReview,
+            lastReviewed: w.lastReviewed
+          }]));
+          const updatedSeed = SEED_WORDS.map(sw => {
+            const stats = oldStatsMap.get(sw.id);
+            if (stats) {
+              return {
+                ...sw,
+                timesCorrect: stats.timesCorrect ?? sw.timesCorrect,
+                timesWrong: stats.timesWrong ?? sw.timesWrong,
+                nextReview: stats.nextReview ?? sw.nextReview,
+                lastReviewed: stats.lastReviewed ?? sw.lastReviewed,
+              };
+            }
+            return sw;
+          });
+          save(KEYS.words, updatedSeed);
+        } catch {
+          save(KEYS.words, SEED_WORDS);
+        }
+      } else {
+        save(KEYS.words, SEED_WORDS);
+      }
+      localStorage.setItem(DATA_VERSION_KEY, String(DATA_VERSION));
+    }
+  } catch (e) {
+    console.error('Migration error:', e);
+  }
+}
+
+checkVersionAndUpgrade();
+
+export const resetAllDataToSeed = (): void => {
+  save(KEYS.words, SEED_WORDS);
+  save(KEYS.grammar, SEED_GRAMMAR);
+  save(KEYS.grammarSentences, SEED_GRAMMAR_SENTENCES);
+  save(KEYS.kanji, SEED_KANJI);
+  save(KEYS.kana, SEED_KANA);
+  save(KEYS.nounTypes, SEED_NOUN_TYPES);
+  save(KEYS.verbFormTypes, SEED_VERB_FORM_TYPES);
+  save(KEYS.verbFormSuffixes, SEED_VERB_FORM_SUFFIXES);
+  localStorage.setItem(DATA_VERSION_KEY, String(DATA_VERSION));
+};
 
 // ─── Words ────────────────────────────────────────────────────────────────────
 

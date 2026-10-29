@@ -95,10 +95,10 @@ export function StudyModePage() {
 
   const back = (
     <div className="space-y-2 flex flex-col items-center justify-center">
-      <div className="text-2xl font-bold text-white">{translation}</div>
-      <div className="text-xs uppercase tracking-wide text-sakura-400 font-semibold">{typeLabel(current?.wordType)}</div>
+      <div className="text-2xl font-bold text-gray-900 dark:text-white">{translation}</div>
+      <div className="text-xs uppercase tracking-wide text-sakura-600 dark:text-sakura-400 font-semibold">{typeLabel(current?.wordType)}</div>
       {current?.nextReview && (
-        <div className="text-xs text-gray-400 mt-1">
+        <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
           {language === 'sk' ? `Ďalšie opakovanie: ${current.nextReview}` : `Next review: ${current.nextReview}`}
         </div>
       )}

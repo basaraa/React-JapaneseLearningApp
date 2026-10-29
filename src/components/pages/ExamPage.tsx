@@ -1,9 +1,9 @@
 import { useState, useCallback, useMemo, useEffect } from 'react';
 import { useLanguage } from '../../context';
-import { getWords, saveExamResult } from '../../storage';
+import { getWords, getNounTypes, saveExamResult } from '../../storage';
 import type { Word, ExamResult } from '../../types';
 import { v4 as uuidv4 } from 'uuid';
-import { BookOpen, Check, X, ArrowRight, RefreshCw } from 'lucide-react';
+import { BookOpen, Check, X, ArrowRight, RefreshCw, Folder } from 'lucide-react';
 
 type ExamMode = 'jp-sk' | 'jp-en' | 'sk-jp' | 'en-jp';
 
@@ -13,6 +13,11 @@ interface Question {
   questionKanji?: string;
   correctAnswer: string;
   choices: string[];
+}
+
+interface ExamPageProps {
+  initialCategory?: string;
+  onResetCategory?: () => void;
 }
 
 function getQuestionText(word: Word, mode: ExamMode): string {
@@ -51,7 +56,7 @@ function getModePrompt(mode: ExamMode, language: string): string {
   }
 }
 
-export function ExamPage() {
+export function ExamPage({ initialCategory, onResetCategory }: ExamPageProps) {
   const { language } = useLanguage();
   const [phase, setPhase] = useState<'menu' | 'quiz' | 'result'>('menu');
   const [questions, setQuestions] = useState<Question[]>([]);
@@ -60,12 +65,31 @@ export function ExamPage() {
   const [score, setScore] = useState(0);
   const [answered, setAnswered] = useState(false);
   const [wordTypeFilter, setWordTypeFilter] = useState<Word['wordType'] | 'all'>('all');
+  const [categoryFilter, setCategoryFilter] = useState<string>(initialCategory || 'all');
+  const [questionCount, setQuestionCount] = useState<number>(10);
   const [mode, setMode] = useState<ExamMode>(language === 'sk' ? 'jp-sk' : 'jp-en');
 
   const words = getWords();
+  const nounTypes = getNounTypes();
+
+  useEffect(() => {
+    if (initialCategory) {
+      setCategoryFilter(initialCategory);
+    }
+  }, [initialCategory]);
+
   const filteredWords = useMemo(
-    () => words.filter((w) => wordTypeFilter === 'all' || w.wordType === wordTypeFilter),
-    [words, wordTypeFilter]
+    () =>
+      words.filter((w) => {
+        const matchType = wordTypeFilter === 'all' || w.wordType === wordTypeFilter;
+        const matchCategory =
+          categoryFilter === 'all' ||
+          (categoryFilter === 'uncategorized'
+            ? w.subtypeIds.length === 0
+            : w.subtypeIds.includes(categoryFilter));
+        return matchType && matchCategory;
+      }),
+    [words, wordTypeFilter, categoryFilter]
   );
 
   useEffect(() => {
@@ -83,13 +107,14 @@ export function ExamPage() {
 
     // Shuffle pool of words
     const shuffledWords = [...filteredWords].sort(() => Math.random() - 0.5);
-    const count = Math.min(10, shuffledWords.length);
+    const count = questionCount === -1 ? shuffledWords.length : Math.min(questionCount, shuffledWords.length);
     const selectedWords = shuffledWords.slice(0, count);
 
-    // Collect all valid unique answers available across the filtered list
+    // Fall back to broader candidate pool for distractors if filtered set has few items
+    const distractorPool = filteredWords.length >= 6 ? filteredWords : words;
     const allAnswers = Array.from(
       new Set(
-        filteredWords
+        distractorPool
           .map((w) => getAnswerText(w, mode).trim())
           .filter((txt) => txt.length > 0)
       )
@@ -123,7 +148,7 @@ export function ExamPage() {
     setScore(0);
     setAnswered(false);
     setPhase('quiz');
-  }, [filteredWords, mode]);
+  }, [filteredWords, words, questionCount, mode]);
 
   const current = questions[qIndex];
   const isLast = qIndex >= questions.length - 1;
@@ -177,7 +202,7 @@ export function ExamPage() {
           </p>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
               {language === 'sk' ? 'Typ slova' : 'Word type'}
@@ -187,11 +212,30 @@ export function ExamPage() {
               onChange={(e) => setWordTypeFilter(e.target.value as any)}
               className="w-full px-3 py-2 text-sm text-gray-900 dark:text-white bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-sakura-500 outline-none"
             >
-              <option value="all">{language === 'sk' ? 'Všetky' : 'All'}</option>
+              <option value="all">{language === 'sk' ? 'Všetky typy' : 'All types'}</option>
               <option value="noun">{language === 'sk' ? 'Podstatné mená' : 'Nouns'}</option>
               <option value="adjective">{language === 'sk' ? 'Prídavné mená' : 'Adjectives'}</option>
               <option value="verb">{language === 'sk' ? 'Slovesá' : 'Verbs'}</option>
               <option value="sentence">{language === 'sk' ? 'Vety' : 'Sentences'}</option>
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              {language === 'sk' ? 'Kategória / Podtyp' : 'Category / Subtype'}
+            </label>
+            <select
+              value={categoryFilter}
+              onChange={(e) => setCategoryFilter(e.target.value)}
+              className="w-full px-3 py-2 text-sm text-gray-900 dark:text-white bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-sakura-500 outline-none"
+            >
+              <option value="all">{language === 'sk' ? 'Všetky kategórie' : 'All categories'}</option>
+              {nounTypes.map((nt) => (
+                <option key={nt.id} value={nt.id}>
+                  {language === 'sk' ? nt.name_sk : nt.name_en}
+                </option>
+              ))}
+              <option value="uncategorized">{language === 'sk' ? 'Bez kategórie' : 'Uncategorized'}</option>
             </select>
           </div>
 
@@ -218,11 +262,53 @@ export function ExamPage() {
               </option>
             </select>
           </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              {language === 'sk' ? 'Počet otázok' : 'Question count'}
+            </label>
+            <select
+              value={questionCount}
+              onChange={(e) => setQuestionCount(parseInt(e.target.value, 10))}
+              className="w-full px-3 py-2 text-sm text-gray-900 dark:text-white bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-sakura-500 outline-none"
+            >
+              <option value="5">5</option>
+              <option value="10">10</option>
+              <option value="15">15</option>
+              <option value="20">20</option>
+              <option value="-1">{language === 'sk' ? 'Všetky v kategórii' : 'All in category'}</option>
+            </select>
+          </div>
         </div>
+
+        {categoryFilter !== 'all' && (
+          <div className="flex items-center justify-between p-3 rounded-xl bg-sakura-50 dark:bg-sakura-950/40 border border-sakura-200 dark:border-sakura-800 text-sm">
+            <div className="flex items-center gap-2 text-sakura-800 dark:text-sakura-200">
+              <Folder className="w-4 h-4" />
+              <span>
+                {language === 'sk' ? 'Vybraná kategória:' : 'Selected category:'}{' '}
+                <strong>
+                  {categoryFilter === 'uncategorized'
+                    ? (language === 'sk' ? 'Bez kategórie' : 'Uncategorized')
+                    : nounTypes.find((n) => n.id === categoryFilter)?.[language === 'sk' ? 'name_sk' : 'name_en'] || categoryFilter}
+                </strong>
+              </span>
+            </div>
+            <button
+              onClick={() => {
+                setCategoryFilter('all');
+                onResetCategory?.();
+              }}
+              className="text-xs text-sakura-700 dark:text-sakura-300 hover:underline"
+            >
+              {language === 'sk' ? 'Zrušiť filter' : 'Clear filter'}
+            </button>
+          </div>
+        )}
 
         <div className="mt-4 flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
           <span className="font-semibold text-gray-900 dark:text-white">{filteredWords.length}</span>
-          <span>{language === 'sk' ? 'slovíčok dostupných' : 'words available'}</span>
+          <span>{language === 'sk' ? 'slovíčok zodpovedá filtrom' : 'words match filters'}</span>
         </div>
 
         <button

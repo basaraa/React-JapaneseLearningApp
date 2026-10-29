@@ -33,22 +33,33 @@ type AppView =
 
 function App() {
   const [view, setView] = useState<AppView>('home');
+  const [selectedCategory, setSelectedCategory] = useState<string | undefined>(undefined);
+
+  const handleStartExam = (catId?: string) => {
+    setSelectedCategory(catId);
+    setView('exam');
+  };
+
+  const handleStartFlashcards = (catId?: string) => {
+    setSelectedCategory(catId);
+    setView('flashcards');
+  };
 
   const renderPage = () => {
     switch (view) {
-      case 'home': return <HomePage onNavigate={(id) => setView(id as AppView)} />;
+      case 'home': return <HomePage onNavigate={(id) => { setSelectedCategory(undefined); setView(id as AppView); }} />;
       case 'vocabulary': return <VocabularyPage />;
-      case 'flashcards': return <FlashCardsPage />;
-      case 'categories': return <CategoriesPage />;
+      case 'flashcards': return <FlashCardsPage initialCategory={selectedCategory} />;
+      case 'categories': return <CategoriesPage onStartExam={handleStartExam} onStartFlashcards={handleStartFlashcards} />;
       case 'grammar': return <GrammarPage />;
       case 'alphabet': return <AlphabetPage />;
       case 'kanji': return <KanjiPage />;
-      case 'exam': return <ExamPage />;
+      case 'exam': return <ExamPage initialCategory={selectedCategory} onResetCategory={() => setSelectedCategory(undefined)} />;
       case 'verb-forms': return <VerbFormsPage />;
       case 'study': return <StudyModePage />;
       case 'progress': return <ProgressPage />;
       case 'add-data': return <AddDataPage />;
-      default: return <HomePage onNavigate={(id) => setView(id as AppView)} />;
+      default: return <HomePage onNavigate={(id) => { setSelectedCategory(undefined); setView(id as AppView); }} />;
     }
   };
 

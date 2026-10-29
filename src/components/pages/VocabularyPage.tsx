@@ -1,13 +1,14 @@
 import { useState, useCallback, useMemo } from 'react';
 import { useLanguage } from '../../context';
-import { deleteWord, getWords } from '../../storage';
+import { deleteWord, getWords, getNounTypes } from '../../storage';
 import type { Word } from '../../types';
 import { SearchBar } from '../ui/SearchBar';
 import { SortableTable } from '../ui/SortableTable';
 import { Modal } from '../ui/Modal';
 import { WordForm } from '../ui/WordForm';
 import { FlipCard } from '../ui/FlipCard';
-import { FlipHorizontal, Pencil, Trash2, Columns, LayoutGrid } from 'lucide-react';
+import { Pagination } from '../ui/Pagination';
+import { FlipHorizontal, Pencil, Trash2, Columns, LayoutGrid, Plus as PlusIcon } from 'lucide-react';
 
 function getJapFontClass(text: string) {
   if (text.length > 25) return 'text-xs sm:text-sm font-medium';
@@ -19,7 +20,10 @@ function getJapFontClass(text: string) {
 export function VocabularyPage() {
   const { language } = useLanguage();
   const [words, setWords] = useState<Word[]>(getWords());
+  const [nounTypes] = useState(getNounTypes());
   const [search, setSearch] = useState('');
+  const [typeFilter, setTypeFilter] = useState<string>('all');
+  const [categoryFilter, setCategoryFilter] = useState<string>('all');
   const [sortKey, setSortKey] = useState<string>('japWord');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
   const [view, setView] = useState<'table' | 'cards'>('table');
@@ -28,21 +32,72 @@ export function VocabularyPage() {
   const [editing, setEditing] = useState<Word | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
 
+  // Pagination state: default 100 items per page
+  const [pageSize, setPageSize] = useState<number>(100);
+  const [currentPage, setCurrentPage] = useState<number>(1);
+
   const handleSort = useCallback((key: string) => {
     setSortDir((prev) => (key === sortKey && prev === 'asc' ? 'desc' : 'asc'));
     setSortKey(key);
+    setCurrentPage(1);
   }, [sortKey]);
+
+  const handleSearchChange = (val: string) => {
+    setSearch(val);
+    setCurrentPage(1);
+  };
+
+  const handleTypeFilterChange = (val: string) => {
+    setTypeFilter(val);
+    setCurrentPage(1);
+  };
+
+  const handleCategoryFilterChange = (val: string) => {
+    setCategoryFilter(val);
+    setCurrentPage(1);
+  };
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase();
-    return words.filter(
-      (w) =>
+    return words.filter((w) => {
+      if (typeFilter !== 'all' && w.wordType !== typeFilter) return false;
+      if (categoryFilter !== 'all') {
+        if (categoryFilter === 'uncategorized') {
+          if (w.subtypeIds.length > 0) return false;
+        } else {
+          if (!w.subtypeIds.includes(categoryFilter)) return false;
+        }
+      }
+      return (
         w.japWord.toLowerCase().includes(q) ||
         w.svkWord.toLowerCase().includes(q) ||
         w.engWord.toLowerCase().includes(q) ||
         (w.kanji ?? '').toLowerCase().includes(q)
-    );
-  }, [words, search]);
+      );
+    });
+  }, [words, search, typeFilter, categoryFilter]);
+
+  // Sort full filtered dataset first so pagination preserves overall ordering
+  const sorted = useMemo(() => {
+    if (!sortKey) return filtered;
+    return [...filtered].sort((a, b) => {
+      const aVal = (a as Record<string, unknown>)[sortKey];
+      const bVal = (b as Record<string, unknown>)[sortKey];
+      const av = String(aVal ?? '');
+      const bv = String(bVal ?? '');
+      const cmp = av.localeCompare(bv, undefined, { numeric: true, sensitivity: 'base' });
+      return sortDir === 'desc' ? -cmp : cmp;
+    });
+  }, [filtered, sortKey, sortDir]);
+
+  const totalPages = Math.max(1, Math.ceil(sorted.length / pageSize));
+  const validPage = Math.min(Math.max(1, currentPage), totalPages);
+
+  // Slice for current page (used in both Table and Cards view)
+  const paginatedWords = useMemo(() => {
+    const start = (validPage - 1) * pageSize;
+    return sorted.slice(start, start + pageSize);
+  }, [sorted, validPage, pageSize]);
 
   const handleAdd = () => { setEditing(null); setOpen(true); };
   const handleEdit = (w: Word) => { setEditing(w); setOpen(true); };
@@ -125,12 +180,44 @@ export function VocabularyPage() {
         </div>
       </div>
 
-      <SearchBar value={search} onChange={setSearch} placeholder={language === 'sk' ? 'Hľadaj slovo...' : 'Search words...'} />
+      <div className="grid grid-cols-1 sm:grid-cols-12 gap-2">
+        <div className="sm:col-span-6 lg:col-span-6">
+          <SearchBar value={search} onChange={handleSearchChange} placeholder={language === 'sk' ? 'Hľadaj slovo...' : 'Search words...'} />
+        </div>
+        <div className="sm:col-span-3 lg:col-span-3">
+          <select
+            value={typeFilter}
+            onChange={(e) => handleTypeFilterChange(e.target.value)}
+            className="w-full h-full min-h-[42px] px-3 py-2 text-xs font-medium text-gray-700 dark:text-gray-200 bg-gray-50 dark:bg-gray-700/80 border border-gray-200 dark:border-gray-600 rounded-xl outline-none focus:ring-2 focus:ring-sakura-500"
+          >
+            <option value="all">{language === 'sk' ? 'Všetky typy slov' : 'All word types'}</option>
+            <option value="noun">{language === 'sk' ? 'Podstatné mená' : 'Nouns'}</option>
+            <option value="adjective">{language === 'sk' ? 'Prídavné mená' : 'Adjectives'}</option>
+            <option value="verb">{language === 'sk' ? 'Slovesá' : 'Verbs'}</option>
+            <option value="sentence">{language === 'sk' ? 'Vety' : 'Sentences'}</option>
+          </select>
+        </div>
+        <div className="sm:col-span-3 lg:col-span-3">
+          <select
+            value={categoryFilter}
+            onChange={(e) => handleCategoryFilterChange(e.target.value)}
+            className="w-full h-full min-h-[42px] px-3 py-2 text-xs font-medium text-gray-700 dark:text-gray-200 bg-gray-50 dark:bg-gray-700/80 border border-gray-200 dark:border-gray-600 rounded-xl outline-none focus:ring-2 focus:ring-sakura-500"
+          >
+            <option value="all">{language === 'sk' ? 'Všetky kategórie' : 'All categories'}</option>
+            {nounTypes.map((nt) => (
+              <option key={nt.id} value={nt.id}>
+                {language === 'sk' ? nt.name_sk : nt.name_en}
+              </option>
+            ))}
+            <option value="uncategorized">{language === 'sk' ? 'Bez kategórie' : 'Uncategorized'}</option>
+          </select>
+        </div>
+      </div>
 
       {view === 'table' ? (
         <SortableTable<Word>
           columns={tableColumns}
-          data={filtered}
+          data={paginatedWords}
           sortKey={sortKey}
           sortDir={sortDir}
           onSort={handleSort}
@@ -196,7 +283,7 @@ export function VocabularyPage() {
         />
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4">
-          {filtered.map((w) => {
+          {paginatedWords.map((w) => {
             const chosenTrans = language === 'sk' ? w.svkWord : w.engWord;
             return (
               <div key={w.id} className="relative group">
@@ -217,11 +304,11 @@ export function VocabularyPage() {
                   }
                   back={
                     <div className="w-full h-full flex flex-col items-center justify-center p-2 text-center space-y-2">
-                      <div className={`text-white font-semibold leading-snug break-words [overflow-wrap:anywhere] ${getJapFontClass(chosenTrans)}`}>
+                      <div className={`text-gray-900 dark:text-white font-semibold leading-snug break-words [overflow-wrap:anywhere] ${getJapFontClass(chosenTrans)}`}>
                         {chosenTrans}
                       </div>
                       <div className="pt-1">
-                        <span className="text-[11px] font-medium px-2.5 py-0.5 rounded-full bg-gray-700 text-sakura-300 border border-gray-600">
+                        <span className="text-[11px] font-medium px-2.5 py-0.5 rounded-full bg-gray-100 dark:bg-gray-700 text-sakura-600 dark:text-sakura-300 border border-gray-200 dark:border-gray-600">
                           {typeLabel(w.wordType)}
                         </span>
                       </div>
@@ -247,7 +334,7 @@ export function VocabularyPage() {
               </div>
             );
           })}
-          {filtered.length === 0 && (
+          {paginatedWords.length === 0 && (
             <div className="col-span-full text-center py-8 text-gray-500 dark:text-gray-400">
               {language === 'sk' ? 'Žiadne slovíčka na zobrazenie.' : 'No words to display.'}
             </div>
@@ -255,10 +342,15 @@ export function VocabularyPage() {
         </div>
       )}
 
-      <div className="mt-4 flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
-        <span className="font-medium">{filtered.length}</span>
-        <span>{language === 'sk' ? 'slovíčok' : 'words'}</span>
-      </div>
+      {/* Pagination at the bottom for both table and cards views */}
+      <Pagination
+        currentPage={validPage}
+        totalItems={sorted.length}
+        pageSize={pageSize}
+        pageSizeOptions={[25, 100, 200, 500, 1000]}
+        onPageChange={setCurrentPage}
+        onPageSizeChange={setPageSize}
+      />
 
       <Modal open={open} onClose={handleSave} title={editing ? 'Upraviť slovo / Edit word' : 'Pridať slovo / Add word'}>
         <WordForm initialWord={editing ?? undefined} onComplete={handleSave} />
@@ -277,13 +369,5 @@ export function VocabularyPage() {
         </div>
       </Modal>
     </div>
-  );
-}
-
-function PlusIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-    </svg>
   );
 }

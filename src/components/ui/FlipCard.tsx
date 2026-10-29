@@ -62,7 +62,7 @@ export function FlipCard({
 
         {/* Back face */}
         <div
-          className="absolute inset-0 w-full h-full rounded-2xl shadow-md border border-gray-700 bg-gray-800 dark:bg-gray-900 text-white p-3 sm:p-4 flex flex-col items-center justify-center text-center overflow-hidden [transform:rotateY(180deg)] [backface-visibility:hidden] [-webkit-backface-visibility:hidden]"
+          className="absolute inset-0 w-full h-full rounded-2xl shadow-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white p-3 sm:p-4 flex flex-col items-center justify-center text-center overflow-hidden [transform:rotateY(180deg)] [backface-visibility:hidden] [-webkit-backface-visibility:hidden]"
         >
           <div className="w-full max-h-full overflow-y-auto flex flex-col items-center justify-center break-words [overflow-wrap:anywhere] [word-break:break-word]">
             {back}
