@@ -83,23 +83,6 @@ You can run the application full-screen without browser address bars:
 
 ---
 
-## 🗄️ Data Management & SQL Import
-
-All study data is bundled in `data/seed.ts` and persists in the browser via `localStorage`.
-
-### Automated Import from Legacy MySQL:
-The project includes a Python utility `scripts/import_sql_to_seed.py` that:
-1. Parses SQL dumps from `JapaneseLearningApp/database/myDatabase.sql`.
-2. Extracts over **2,000 words** and their category relations (`wordSubtypes`).
-3. Preserves existing handcrafted English translations.
-4. Automatically translates missing Slovak terms into English using batch translation and caches results locally in `scripts/translations_cache.json` for offline reproducibility.
-5. Formats and writes clean TypeScript structures to `data/seed.ts`.
-
-### Running the Import:
-```bash
-python scripts/import_sql_to_seed.py
-```
-
 ### In-Browser Data Synchronization:
 The storage manager (`src/storage.ts`) includes a data versioning check (`DATA_VERSION`). When the application is opened, any new seed data is synced into `localStorage` while preserving your user progress, exam results, and custom entries.
 
