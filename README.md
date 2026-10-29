@@ -96,9 +96,6 @@ React-JapaneseLearningApp/
 │   └── seed.ts                  # Core dataset (vocabulary, grammar, kanji, kana, categories)
 ├── public/
 │   └── favicon.svg
-├── scripts/
-│   ├── import_sql_to_seed.py    # Python migration script (MySQL dump -> seed.ts)
-│   └── translations_cache.json  # Local translation cache for batch imports
 ├── src/
 │   ├── components/
 │   │   ├── layout/              # Header, navigation drawer, bottom nav
